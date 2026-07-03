@@ -29,5 +29,7 @@ def debug_paths():
 
 @app.get("/view_1_scraper", status_code=200)
 def view_1_scraper():
-    output = scraper.main()
+    output = scraper.run_scraper(
+        out="/tmp/view1"
+    )
     return output
