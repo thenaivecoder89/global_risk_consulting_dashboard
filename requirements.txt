@@ -9,3 +9,5 @@ numpy
 sqlalchemy
 pymupdf
 httpx
+lxml
+python-dateutil
