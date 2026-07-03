@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+psycopg[binary]
+csv
+python-dotenv
+psycopg2-binary
+beautifulsoup4
+pandas
+numpy
+sqlalchemy
+pymupdf
