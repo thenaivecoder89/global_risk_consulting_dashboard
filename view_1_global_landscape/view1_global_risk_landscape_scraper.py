@@ -898,22 +898,28 @@ def save_json(path, data):
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def main():
+def main(
+        out="outputs/view1_data",
+        limit=0,
+        no_robots=False,
+        delay=1.5
+):
     start_time = time.time()
-    print(f"Scraper start time: {start_time}")
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--out", default="outputs/view1", help="Output directory")
-    parser.add_argument("--delay", type=float, default=1.5, help="Delay between source requests in seconds")
-    parser.add_argument("--no-robots", action="store_true", help="Disable robots.txt check")
-    parser.add_argument("--limit", type=int, default=0, help="Limit number of sources for testing; 0 means all")
-    args = parser.parse_args()
+    start_time_value = datetime.fromtimestamp(start_time).date()
+    print(f"Scraper start time: {datetime.strftime(start_time_value, "%d/%m/%Y, %H:%M:%S")}")
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--out", default="outputs/view1", help="Output directory")
+    # parser.add_argument("--delay", type=float, default=1.5, help="Delay between source requests in seconds")
+    # parser.add_argument("--no-robots", action="store_true", help="Disable robots.txt check")
+    # parser.add_argument("--limit", type=int, default=0, help="Limit number of sources for testing; 0 means all")
+    # args = parser.parse_args()
 
-    out_dir = Path(args.out)
+    out_dir = Path(out)
     raw_text_dir = out_dir / "raw_text"
     out_dir.mkdir(parents=True, exist_ok=True)
     raw_text_dir.mkdir(parents=True, exist_ok=True)
 
-    registry = SOURCE_REGISTRY[: args.limit] if args.limit and args.limit > 0 else SOURCE_REGISTRY
+    registry = SOURCE_REGISTRY[:limit] if limit and limit > 0 else SOURCE_REGISTRY
 
     print(f"Starting View 1 scrape for {len(registry)} official sources.")
     print(f"Output directory: {out_dir}")
@@ -925,7 +931,7 @@ def main():
             f"[{idx}/{len(registry)}] {source['firm']} | {source['source_type']} | {source['url']}",
             flush=True
         )
-        record = process_source(source, raw_text_dir, respect_robots=not args.no_robots)
+        record = process_source(source, raw_text_dir, respect_robots=not no_robots)
         records.append(record)
         print(
             f"    status={record['extract_status']} "
@@ -935,7 +941,7 @@ def main():
         )
 
         if idx < len(registry):
-            time.sleep(max(0, args.delay))
+            time.sleep(max(0, delay))
 
     flat_records = [flatten_source_record(r) for r in records]
     source_df = pd.DataFrame(flat_records)
@@ -962,7 +968,8 @@ def main():
     print("\nImportant: Review evidence columns manually before presenting to management.")
 
     end_time = time.time()
-    print(f"Scraper end time: {end_time}")
+    end_time_value = datetime.fromtimestamp(end_time).date()
+    print(f"Scraper end time: {datetime.strftime(end_time_value, "%d/%m/%Y, %H:%M:%S")}")
     program_runtime = end_time - start_time
     print(f"Overall program runtime: {program_runtime:.2f} seconds.")
 
