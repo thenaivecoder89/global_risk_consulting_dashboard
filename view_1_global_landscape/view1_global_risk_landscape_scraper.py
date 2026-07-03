@@ -898,21 +898,87 @@ def save_json(path, data):
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def main(
-        out="outputs/view1_data",
-        limit=0,
-        no_robots=False,
-        delay=1.5
+def _decode_json_columns(record):
+    """
+    Converts JSON-string columns back into real Python lists/dicts
+    so FastAPI returns clean JSON for the frontend.
+
+    Example:
+    "[\"Deloitte\", \"PwC\"]" becomes ["Deloitte", "PwC"]
+    """
+    json_like_fields = {
+        "firm_scale_metric_candidates",
+        "workforce_metric_candidates",
+        "footprint_metric_candidates",
+        "risk_segments_evidenced",
+        "risk_capability_tags",
+        "source_urls",
+        "successful_source_urls",
+        "money_amounts_found",
+        "people_amounts_found",
+        "footprint_amounts_found",
+        "risk_segment_keyword_hits",
+        "practice_positioning_contexts",
+    }
+
+    cleaned = {}
+
+    for key, value in record.items():
+        if key in json_like_fields and isinstance(value, str):
+            try:
+                cleaned[key] = json.loads(value)
+            except Exception:
+                cleaned[key] = value
+        else:
+            cleaned[key] = value
+
+    return cleaned
+
+
+def _dataframe_to_records(df):
+    """
+    Converts a DataFrame into frontend-friendly JSON records.
+    Also replaces NaN/NaT with None because raw NaN is not valid JSON.
+    """
+    if df is None or df.empty:
+        return []
+
+    safe_df = df.where(pd.notnull(df), None)
+    records = safe_df.to_dict(orient="records")
+
+    return [_decode_json_columns(record) for record in records]
+
+
+def run_scraper(
+    out="outputs/view1",
+    delay=1.5,
+    no_robots=False,
+    limit=0,
+    include_source_extracts=False,
+    save_files=False
 ):
+    """
+    Programmatic scraper runner.
+
+    Use this function from FastAPI.
+
+    This function:
+    - Does NOT read command-line arguments.
+    - Returns a clean Python dict.
+    - FastAPI will automatically serialize the dict into JSON.
+    - Keeps the output frontend-friendly for Replit.
+
+    Parameters:
+    - out: output directory
+    - delay: delay between requests
+    - no_robots: if True, bypass robots.txt check
+    - limit: limit number of sources for testing; 0 means all
+    - include_source_extracts: if True, includes raw source-level extracted records
+    - save_files: if True, saves CSV/JSON outputs to disk
+    """
+
     start_time = time.time()
-    start_time_value = datetime.fromtimestamp(start_time).date()
-    print(f"Scraper start time: {datetime.strftime(start_time_value, "%d/%m/%Y, %H:%M:%S")}")
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--out", default="outputs/view1", help="Output directory")
-    # parser.add_argument("--delay", type=float, default=1.5, help="Delay between source requests in seconds")
-    # parser.add_argument("--no-robots", action="store_true", help="Disable robots.txt check")
-    # parser.add_argument("--limit", type=int, default=0, help="Limit number of sources for testing; 0 means all")
-    # args = parser.parse_args()
+    start_time_iso = now_utc_iso()
 
     out_dir = Path(out)
     raw_text_dir = out_dir / "raw_text"
@@ -921,18 +987,27 @@ def main(
 
     registry = SOURCE_REGISTRY[:limit] if limit and limit > 0 else SOURCE_REGISTRY
 
-    print(f"Starting View 1 scrape for {len(registry)} official sources.")
-    print(f"Output directory: {out_dir}")
+    print(f"Scraper start time: {start_time}", flush=True)
+    print(f"Starting View 1 scrape for {len(registry)} official sources.", flush=True)
+    print(f"Output directory: {out_dir}", flush=True)
 
     records = []
 
     for idx, source in enumerate(registry, start=1):
         print(
-            f"[{idx}/{len(registry)}] {source['firm']} | {source['source_type']} | {source['url']}",
+            f"[{idx}/{len(registry)}] "
+            f"{source['firm']} | {source['source_type']} | {source['url']}",
             flush=True
         )
-        record = process_source(source, raw_text_dir, respect_robots=not no_robots)
+
+        record = process_source(
+            source,
+            raw_text_dir,
+            respect_robots=not no_robots
+        )
+
         records.append(record)
+
         print(
             f"    status={record['extract_status']} "
             f"text_length={record['text_length']} "
@@ -946,36 +1021,95 @@ def main(
     flat_records = [flatten_source_record(r) for r in records]
     source_df = pd.DataFrame(flat_records)
     view1_df = build_view1_firm_rows(source_df)
-    view1_json = view1_df.to_json()
-    view1_json_output = json.dumps(view1_json, indent=4)
 
-    # source_csv = out_dir / "source_extracts.csv"
-    # source_json = out_dir / "source_extracts.json"
-    # view1_csv = out_dir / "view1_global_landscape.csv"
-    # view1_json = out_dir / "view1_global_landscape.json"
+    view1_records = _dataframe_to_records(view1_df)
+    source_records = _dataframe_to_records(source_df)
 
-    # source_df.to_csv(source_csv, index=False, quoting=csv.QUOTE_MINIMAL)
-    # view1_df.to_csv(view1_csv, index=False, quoting=csv.QUOTE_MINIMAL)
-
-    # save_json(source_json, flat_records)
-    # save_json(view1_json, view1_df.to_dict(orient="records"))
-
-    print("\nDone.")
-    # print(f"Source extracts CSV: {source_csv}")
-    # print(f"Source extracts JSON: {source_json}")
-    # print(f"View 1 CSV: {view1_csv}")
-    # print(f"View 1 JSON: {view1_json}")
-    print("\nImportant: Review evidence columns manually before presenting to management.")
+    failed_source_count = 0
+    if not source_df.empty and "extract_status" in source_df.columns:
+        failed_source_count = int((source_df["extract_status"] != "success").sum())
 
     end_time = time.time()
-    end_time_value = datetime.fromtimestamp(end_time).date()
-    print(f"Scraper end time: {datetime.strftime(end_time_value, "%d/%m/%Y, %H:%M:%S")}")
+    end_time_iso = now_utc_iso()
     program_runtime = end_time - start_time
-    print(f"Overall program runtime: {program_runtime:.2f} seconds.")
 
-    return view1_json_output
+    output_payload = {
+        "status": "success",
+        "message": "View 1 scraper completed successfully.",
+        "view": "View 1 - Global Risk Consulting Practice Landscape",
+        "metadata": {
+            "start_time_utc": start_time_iso,
+            "end_time_utc": end_time_iso,
+            "runtime_seconds": round(program_runtime, 2),
+            "source_count": int(len(source_df)),
+            "firm_count": int(len(view1_df)),
+            "failed_source_count": failed_source_count,
+            "output_dir": str(out_dir),
+            "robots_check_enabled": not no_robots,
+            "source_limit_applied": int(limit) if limit else 0,
+            "include_source_extracts": bool(include_source_extracts),
+            "save_files": bool(save_files),
+        },
+        "data": view1_records,
+    }
+
+    if include_source_extracts:
+        output_payload["source_extracts"] = source_records
+
+    if save_files:
+        source_csv = out_dir / "source_extracts.csv"
+        source_json = out_dir / "source_extracts.json"
+        view1_csv = out_dir / "view1_global_landscape.csv"
+        view1_json = out_dir / "view1_global_landscape.json"
+
+        source_df.to_csv(source_csv, index=False, quoting=csv.QUOTE_MINIMAL)
+        view1_df.to_csv(view1_csv, index=False, quoting=csv.QUOTE_MINIMAL)
+
+        save_json(source_json, source_records)
+        save_json(view1_json, view1_records)
+
+        output_payload["files"] = {
+            "source_extracts_csv": str(source_csv),
+            "source_extracts_json": str(source_json),
+            "view1_csv": str(view1_csv),
+            "view1_json": str(view1_json),
+        }
+
+    print("Done.", flush=True)
+    print(f"Scraper end time: {end_time}", flush=True)
+    print(f"Overall program runtime: {program_runtime:.2f} seconds.", flush=True)
+    print("Important: Review evidence columns manually before presenting to management.", flush=True)
+
+    return output_payload
+
+
+def main(argv=None):
+    """
+    CLI entrypoint.
+
+    Use this only when running the scraper directly from terminal.
+    FastAPI should call run_scraper(), not main().
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out", default="outputs/view1", help="Output directory")
+    parser.add_argument("--delay", type=float, default=1.5, help="Delay between source requests in seconds")
+    parser.add_argument("--no-robots", action="store_true", help="Disable robots.txt check")
+    parser.add_argument("--limit", type=int, default=0, help="Limit number of sources for testing; 0 means all")
+    parser.add_argument("--include-source-extracts", action="store_true", help="Include source-level extracted records")
+    parser.add_argument("--save-files", action="store_true", help="Save CSV/JSON output files")
+
+    args = parser.parse_args(argv)
+
+    return run_scraper(
+        out=args.out,
+        delay=args.delay,
+        no_robots=args.no_robots,
+        limit=args.limit,
+        include_source_extracts=args.include_source_extracts,
+        save_files=args.save_files,
+    )
 
 
 if __name__ == "__main__":
     print("Output of view 1 scraper program:\n")
-    print(main())
+    print(json.dumps(main(), indent=4, ensure_ascii=False))
