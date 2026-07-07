@@ -67,7 +67,7 @@ def risk_practice_momentum_data_call():
         orient="records",
         date_format="iso"
     )
-    output = json.dumps(json_parser(risk_consulting_momentum_index_json), indent=4)
+    output = json_parser(risk_consulting_momentum_index_json)
     return output
 
 if __name__ == "__main__":
