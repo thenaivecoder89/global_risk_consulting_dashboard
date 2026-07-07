@@ -12,3 +12,4 @@ httpx
 lxml
 python-dateutil
 requests
+openai
