@@ -11,3 +11,4 @@ pymupdf
 httpx
 lxml
 python-dateutil
+requests
