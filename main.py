@@ -1,4 +1,5 @@
 from view_1_global_landscape import view1_global_risk_landscape_scraper as scraper
+from scripts.application.risk_practice_momentum_index import risk_practice_momentum_index_api as rpmi_api
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
@@ -32,4 +33,9 @@ def view_1_scraper():
     output = scraper.run_scraper(
         out="/tmp/view1"
     )
+    return output
+
+@app.get("/risk_practice_momentum_index", status_code=200)
+def risk_practice_momentum_index():
+    output = rpmi_api.risk_practice_momentum_data_call()
     return output
