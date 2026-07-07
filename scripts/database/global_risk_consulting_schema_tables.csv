@@ -1,0 +1,5 @@
+"table_catalog","table_schema","table_name","table_type","self_referencing_column_name","reference_generation","user_defined_type_catalog","user_defined_type_schema","user_defined_type_name","is_insertable_into","is_typed","commit_action"
+"railway","public","share_of_voice","BASE TABLE",NULL,NULL,NULL,NULL,NULL,"YES","NO",NULL
+"railway","public","risk_practice_momentum_index","BASE TABLE",NULL,NULL,NULL,NULL,NULL,"YES","NO",NULL
+"railway","public","hiring_intensity_index","BASE TABLE",NULL,NULL,NULL,NULL,NULL,"YES","NO",NULL
+"railway","public","deal_alliance_activity_tracker","BASE TABLE",NULL,NULL,NULL,NULL,NULL,"YES","NO",NULL
