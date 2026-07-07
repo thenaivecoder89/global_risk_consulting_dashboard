@@ -135,7 +135,7 @@ def call_risk_practice_momentum_llm(
 ) -> dict[str, Any]:
     load_dotenv()
 
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_KEY")
+    api_key = os.getenv("OPENAI_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY or OPENAI_KEY must be set before calling the OpenAI API.")
 
