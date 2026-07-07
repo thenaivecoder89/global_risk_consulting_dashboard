@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, text
 
 # initializing environment variables
 load_dotenv()
-db_url = os.getenv("DB_URL")
+db_url = os.getenv("DATABASE_PUBLIC_URL")
 
 # initializing variables
 risk_consulting_momentum_index_df = pd.DataFrame()
